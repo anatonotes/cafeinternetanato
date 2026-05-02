@@ -33,7 +33,7 @@
     };
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
-    const db = firebase.firestore();
+    const db   = firebase.firestore();
     const appId = 'cafe-internet-pro';
   </script>
 
@@ -77,7 +77,7 @@
               setIsNameSet(true);
             }
 
-            // 🔥 FIX: insertar en ranking al iniciar sesión
+            // 🔥 FIX 1
             await db.collection('artifacts').doc(appId)
               .collection('public').doc('data')
               .collection('rankings').doc(user.uid)
@@ -94,23 +94,27 @@
           }
         });
 
-        const unsubRank = db.collection('artifacts').doc(appId)
+        const unsubscribeRankings = db.collection('artifacts').doc(appId)
           .collection('public').doc('data')
           .collection('rankings')
           .onSnapshot(snapshot => {
             const rankings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            const sorted = rankings.sort((a, b) => (b.score || 0) - (a.score || 0));
-            const top = sorted.slice(0, 5);
-            const currentUser = sorted.find(r => r.userId === user.uid);
 
-            setGlobalRankings(
-              currentUser && !top.find(r => r.userId === user.uid)
-                ? [...top, currentUser]
-                : top
-            );
+            const sorted = rankings.sort((a, b) => (b.score || 0) - (a.score || 0));
+            const top5 = sorted.slice(0, 5);
+
+            const currentUser = sorted.find(r => r.userId === user?.uid);
+
+            let finalRankings = top5;
+
+            if (currentUser && !top5.find(r => r.userId === user?.uid)) {
+              finalRankings = [...top5, currentUser];
+            }
+
+            setGlobalRankings(finalRankings);
           });
 
-        return () => unsubRank();
+        return () => unsubscribeRankings();
       }, [user]);
 
       const syncData = useCallback(async (updates) => {
@@ -136,7 +140,6 @@
 
       }, [user, score, coins, username]);
 
-      // 🔥 FIX username
       const handleSetUsername = async () => {
         if (username.trim().length >= 3) {
           const clean = username.trim();
@@ -144,6 +147,7 @@
 
           await syncData({ username: clean });
 
+          // 🔥 FIX 2
           await db.collection('artifacts').doc(appId)
             .collection('public').doc('data')
             .collection('rankings').doc(user.uid)
@@ -173,7 +177,7 @@
           <h1>User: {username}</h1>
           <h2>{score} XP</h2>
 
-          <h3>Ranking</h3>
+          <h3>Global Live Rankings (by XP)</h3>
           {globalRankings.map((r, i) => (
             <div key={r.id}>
               #{i+1} {r.username} - {r.score} XP
